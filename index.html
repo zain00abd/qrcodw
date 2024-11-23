@@ -3,154 +3,68 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>قراءة الباركود مع تحسين الإضاءة</title>
+  <title>قراءة الباركود - محسّن</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 0;
-      text-align: center;
-      background-color: #f4f4f4;
-    }
-    h1 {
-      margin: 20px;
-      color: #333;
-    }
     #interactive {
       position: relative;
       width: 100%;
       max-width: 500px;
-      margin: 0 auto;
-      border: 2px solid #007bff;
-      background: black;
-      height: 300px;
+      margin: auto;
+      border: 1px solid black;
     }
-    video {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-    #result {
-      margin-top: 10px;
-      font-size: 18px;
-      color: #007bff;
-    }
-    #flash-toggle {
-      display: block;
-      margin: 15px auto;
-      padding: 10px 20px;
-      font-size: 16px;
-      background-color: #007bff;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-    #flash-toggle:disabled {
-      background-color: gray;
-      cursor: not-allowed;
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
     }
   </style>
 </head>
 <body>
-  <h1>قراءة الباركود مع تحسين الإضاءة</h1>
-  <div id="interactive" class="viewport">
-    <video autoplay playsinline></video>
-  </div>
+  <h1>قراءة الباركود</h1>
+  <div id="interactive" class="viewport"></div>
   <p id="result">النتيجة: <span></span></p>
-  <button id="flash-toggle">تشغيل الفلاش</button>
 
   <script>
-    let stream; // لتخزين بث الكاميرا
-    let torchEnabled = false; // حالة الفلاش
-
-    // بدء تشغيل الكاميرا
-    async function startCamera() {
-      try {
-        const videoElement = document.querySelector("video");
-        
-        // طلب الوصول إلى الكاميرا
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: "environment",
-            advanced: [{ torch: torchEnabled }] // محاولة تشغيل الفلاش
-          }
-        });
-
-        // عرض الفيديو في العنصر
-        videoElement.srcObject = stream;
-
-        // بدء QuaggaJS لقراءة الباركود
-        startBarcodeScanner();
-      } catch (error) {
-        console.error("تعذر الوصول إلى الكاميرا:", error);
-        alert("تعذر تشغيل الكاميرا. يرجى التحقق من الأذونات أو إعدادات الجهاز.");
-      }
-    }
-
-    // بدء QuaggaJS لقراءة الباركود
     function startBarcodeScanner() {
       Quagga.init({
         inputStream: {
           name: "Live",
           type: "LiveStream",
-          target: document.querySelector("#interactive"),
+          target: document.querySelector('#interactive'),
           constraints: {
             facingMode: "environment"
           }
         },
         decoder: {
-          readers: ["ean_reader"] // لقراءة الباركود من النوع EAN
+          readers: ["ean_reader"] // نركز فقط على EAN-13
         },
-        locate: true
-      }, function (err) {
+        locate: true, // تحسين التعرف على الباركود في الإطار
+        numOfWorkers: navigator.hardwareConcurrency || 4, // تحسين الأداء
+        frequency: 10, // عدد مرات محاولة قراءة الباركود في الثانية
+      }, function(err) {
         if (err) {
           console.error("خطأ أثناء بدء Quagga:", err);
+          alert("تعذر بدء قراءة الباركود!");
           return;
         }
+        console.log("QuaggaJS جاهز للعمل");
         Quagga.start();
       });
 
       // عند اكتشاف باركود
-      Quagga.onDetected(function (result) {
-        const code = result.codeResult.code;
-        const resultElement = document.getElementById("result").querySelector("span");
-        resultElement.textContent = code;
-        console.log("تم الكشف عن الباركود:", code);
+      Quagga.onDetected(function(data) {
+        const code = data.codeResult.code;
+        const resultElement = document.getElementById('result').querySelector('span');
+        resultElement.textContent = code; // عرض الكود في الصفحة
+        console.log("باركود مكتشف:", code);
 
-        // يمكنك إيقاف Quagga بعد العثور على أول نتيجة
+        // إيقاف القراءة بعد الاكتشاف
         Quagga.stop();
       });
     }
 
-    // تبديل الفلاش
-    async function toggleFlash() {
-      if (!stream) return;
-
-      const track = stream.getVideoTracks()[0];
-      const capabilities = track.getCapabilities();
-
-      if (capabilities.torch) {
-        torchEnabled = !torchEnabled; // عكس حالة الفلاش
-        try {
-          await track.applyConstraints({
-            advanced: [{ torch: torchEnabled }]
-          });
-          document.getElementById("flash-toggle").textContent = torchEnabled ? "إيقاف الفلاش" : "تشغيل الفلاش";
-        } catch (error) {
-          console.error("تعذر تشغيل الفلاش:", error);
-        }
-      } else {
-        alert("جهازك لا يدعم خاصية الفلاش.");
-      }
-    }
-
-    // تشغيل الكاميرا
-    startCamera();
-
-    // إضافة مستمع للنقر على زر الفلاش
-    document.getElementById("flash-toggle").addEventListener("click", toggleFlash);
+    startBarcodeScanner();
   </script>
 </body>
 </html>
